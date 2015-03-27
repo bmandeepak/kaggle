@@ -28,6 +28,7 @@ covariates = list(train_data.columns.values)
 
 
 def getImportance(classifier,covariates):
+
     importances = classifier.feature_importances_
     std = np.std([tree.feature_importances_ for tree in classifier.estimators_],
              axis=0)
@@ -40,6 +41,7 @@ def getImportance(classifier,covariates):
     plt.xticks(range(10), np.asarray(covariates)[indices], rotation=45, rotation_mode="anchor", ha="right")
     plt.xlim([-1, 10])
     #plt.show()
+    #print pd.DataFrame(importances,indices)
     return indices
 
 
@@ -205,16 +207,36 @@ train_data['EHDtH'] = train_data.Elevation-train_data.Horizontal_Distance_To_Hyd
 test_data['EHDtH'] = test_data.Elevation-test_data.Horizontal_Distance_To_Hydrology*0.2
 
 
+
+
+train_data['Hydro_Fire_1'] = train_data['Horizontal_Distance_To_Hydrology']+train_data['Horizontal_Distance_To_Fire_Points']
+test_data['Hydro_Fire_1'] = test_data['Horizontal_Distance_To_Hydrology']+test_data['Horizontal_Distance_To_Fire_Points']
+
+train_data['Hydro_Fire_2'] = abs(train_data['Horizontal_Distance_To_Hydrology']-train_data['Horizontal_Distance_To_Fire_Points'])
+test_data['Hydro_Fire_2'] = abs(test_data['Horizontal_Distance_To_Hydrology']-test_data['Horizontal_Distance_To_Fire_Points'])
+
+train_data['Hydro_Road_1'] = abs(train_data['Horizontal_Distance_To_Hydrology']+train_data['Horizontal_Distance_To_Roadways'])
+test_data['Hydro_Road_1'] = abs(test_data['Horizontal_Distance_To_Hydrology']+test_data['Horizontal_Distance_To_Roadways'])
+
+train_data['Hydro_Road_2'] = abs(train_data['Horizontal_Distance_To_Hydrology']-train_data['Horizontal_Distance_To_Roadways'])
+test_data['Hydro_Road_2'] = abs(test_data['Horizontal_Distance_To_Hydrology']-test_data['Horizontal_Distance_To_Roadways'])
+
+train_data['Fire_Road_1'] = abs(train_data['Horizontal_Distance_To_Fire_Points']+train_data['Horizontal_Distance_To_Roadways'])
+test_data['Fire_Road_1'] = abs(test_data['Horizontal_Distance_To_Fire_Points']+test_data['Horizontal_Distance_To_Roadways'])
+
+train_data['Fire_Road_2'] = abs(train_data['Horizontal_Distance_To_Fire_Points']-train_data['Horizontal_Distance_To_Roadways'])
+test_data['Fire_Road_2'] = abs(test_data['Horizontal_Distance_To_Fire_Points']-test_data['Horizontal_Distance_To_Roadways'])
+
 # Covariates
 covariates_train = list(train_data.columns.values)
 covariates_test = list(test_data.columns.values)
 
 cols_train=train_data.columns.tolist()
-cols_train=cols_train[:10]+cols_train[-9:]+cols_train[10:-9:]
+cols_train=cols_train[:10]+cols_train[-15:]+cols_train[10:-15:]
 train_data=train_data[cols_train]
 
 cols_test=test_data.columns.tolist()
-cols_test=cols_test[:10]+cols_test[-9:]+cols_test[10:-9:]
+cols_test=cols_test[:10]+cols_test[-15:]+cols_test[10:-15:]
 test_data=test_data[cols_test]
 
 X_train, X_test, y_train, y_test = train_test_split(train_data.ix[:,:-1].values, train_data.ix[:,-1].values.ravel(),test_size=0.10)
