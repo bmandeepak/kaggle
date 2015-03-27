@@ -11,6 +11,7 @@ from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier,ExtraTreesClassifier
 from sklearn.learning_curve import learning_curve
 from sklearn import cross_validation
+from sklearn import ensemble
 sns.set_palette("deep", desat=.6)
 
 train_data = pd.read_csv("train.csv",index_col='Id')
@@ -121,7 +122,7 @@ top_indices = getImportance(randf,list(train_data.columns.values))
 
 def plot(train_X,top_indices):
     train_data.ix[:,top_indices].hist(figsize=(15,10), bins=50)
-    plt.show()
+    #plt.show()
 
 #plot(train_data,top_indices)
 
@@ -189,19 +190,34 @@ train_data.Mean_Fire_Roadways=train_data.Mean_Fire_Roadways.map(lambda x: 0 if n
 test_data['Mean_Fire_Roadways']=np.mean(test_data.Horizontal_Distance_To_Fire_Points + test_data.Horizontal_Distance_To_Roadways )
 test_data.Mean_Fire_Roadways=test_data.Mean_Fire_Roadways.map(lambda x: 0 if np.isinf(x) else x)
 
+train_data['south_face'] = [180 - a if a <=180 else a - 180  for a in train_data.Aspect]
+test_data['south_face'] = [180 - a if a <=180 else a - 180 for a in test_data.Aspect]
+
+# the effect of a north facing slope is amplified by steepness of the slope
+train_data['south_x_slope'] = train_data.south_face * train_data.hypdis_hydro
+test_data['south_x_slope'] = test_data.south_face * test_data.hypdis_hydro
+
+
+train_data['EVDtH'] = train_data.Elevation-train_data.Vertical_Distance_To_Hydrology
+test_data['EVDtH'] = test_data.Elevation-test_data.Vertical_Distance_To_Hydrology
+
+train_data['EHDtH'] = train_data.Elevation-train_data.Horizontal_Distance_To_Hydrology*0.2
+test_data['EHDtH'] = test_data.Elevation-test_data.Horizontal_Distance_To_Hydrology*0.2
+
+
 # Covariates
 covariates_train = list(train_data.columns.values)
 covariates_test = list(test_data.columns.values)
 
 cols_train=train_data.columns.tolist()
-cols_train=cols_train[:10]+cols_train[-5:]+cols_train[10:-5:]
+cols_train=cols_train[:10]+cols_train[-9:]+cols_train[10:-9:]
 train_data=train_data[cols_train]
 
 cols_test=test_data.columns.tolist()
-cols_test=cols_test[:10]+cols_test[-5:]+cols_test[10:-5:]
+cols_test=cols_test[:10]+cols_test[-9:]+cols_test[10:-9:]
 test_data=test_data[cols_test]
 
-X_train, X_test, y_train, y_test = train_test_split(train_data.ix[:,:-1].values, train_data.ix[:,-1].values.ravel(),test_size=0.1)
+X_train, X_test, y_train, y_test = train_test_split(train_data.ix[:,:-1].values, train_data.ix[:,-1].values.ravel(),test_size=0.10)
 print X_train.shape, X_test.shape, y_train.shape, y_test.shape
 
 
@@ -213,8 +229,8 @@ print X_train.shape, X_test.shape, y_train.shape, y_test.shape
 
 estimator = RandomForestClassifier()
 
-params_grid={'n_estimators':[500],
-                            'max_depth':[8,10]
+params_grid={'n_estimators':[1000],
+                            'max_depth':[8,10,12,14]
             }
 cv,best_estimator=crossvalidation(estimator, params_grid, 1)
 print "Best Estimator Parameters"
@@ -227,8 +243,13 @@ print getImportance(best_estimator, list(train_data.columns.values))
 
 title = "Learning Curves (Random Forests, n_estimators=%d, max_depth=%.6f)" %(best_estimator.n_estimators,  best_estimator.max_depth)
 plot_learning_curve(best_estimator, title, X_train, y_train, cv=cv, n_jobs=1)
-plt.show()
+#plt.show()
 
+title = "Learning Curves (Random Forests, n_estimators=%d, max_depth=%.6f)" %(best_estimator.n_estimators,  best_estimator.max_depth)
+plot_learning_curve(best_estimator, title, X_train, y_train, cv=cv, n_jobs=1)
+#plt.show()
+
+best_estimator.fit(X_train, y_train)
 y_pred=best_estimator.predict(X_test)
 print "Training Score: %.2f" %best_estimator.score(X_train,y_train)
 print "Test Score: %.2f" %best_estimator.score(X_test,y_test)
@@ -257,3 +278,15 @@ temp=temp['Cover_Type']
 temp.to_csv('RF-FeatureEng_Weight.csv', header=True)
 
 
+forest = ensemble.ExtraTreesClassifier(n_estimators=400, criterion='gini', max_depth=None,
+    min_samples_split=2, min_samples_leaf=1, max_features='auto',
+    bootstrap=False, oob_score=False, n_jobs=-1, random_state=None, verbose=0,
+    min_density=None)
+
+forest.fit(X_train, y_train, sample_weight=sample_weights.Class_Weights.values)
+
+
+temp=test_data.copy()
+temp['Cover_Type']=forest.predict(temp.values)
+temp=temp['Cover_Type']
+temp.to_csv('ExtraTrees-FeatureEng_Weight.csv', header=True)
