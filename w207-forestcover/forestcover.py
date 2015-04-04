@@ -14,7 +14,8 @@ from sklearn import cross_validation
 from sklearn import ensemble
 sns.set_palette("deep", desat=.6)
 
-train_data = pd.read_csv("train.csv",index_col='Id')
+#train_data = pd.read_csv("covtype.data",index_col='Id')
+train_data = pd.read_csv("covtype.data")
 test_data = pd.read_csv("test.csv",index_col='Id')
 
 # Shape of data
@@ -143,7 +144,7 @@ X,y,X_train_data_missing,y_train_data_missing= temp[temp.Hillshade_3pm!=0].value
 
 
 X_train,X_test,y_train,y_test=train_test_split(X,y)
-imp = Imputer(missing_values='NaN', strategy='mean', axis=0)
+imp = Imputer(missing_values='NaN', strategy='median', axis=0)
 imp.fit(X_train,y_train)
 temp.Hillshade_3pm.loc[temp.Hillshade_3pm==0]=imp.transform(X_train_data_missing)
 train_data.Hillshade_3pm=temp.Hillshade_3pm
@@ -171,6 +172,11 @@ test_data['hypdis_hydro'] = np.sqrt(np.square(test_data.Vertical_Distance_To_Hyd
 test_data.hypdis_hydro=test_data.hypdis_hydro.map(lambda x: 0 if np.isinf(x) else x)
 
 
+train_data['slopeperc_hydro'] = ((train_data.Vertical_Distance_To_Hydrology)/(train_data.Horizontal_Distance_To_Hydrology))
+train_data.slopeperc_hydro=train_data.slopeperc_hydro.map(lambda x: 0 if np.isinf(x) else x)
+test_data['slopeperc_hydro'] = ((test_data.Vertical_Distance_To_Hydrology)/(test_data.Horizontal_Distance_To_Hydrology))
+test_data.slopeperc_hydro=test_data.slopeperc_hydro.map(lambda x: 0 if np.isinf(x) else x)
+
 train_data['water_source']=1*np.array(train_data.Vertical_Distance_To_Hydrology>0)
 train_data.water_source=train_data.water_source.map(lambda x: 0 if np.isinf(x) else x)
 test_data['water_source']=1*np.array(test_data.Vertical_Distance_To_Hydrology>0)
@@ -196,8 +202,12 @@ train_data['south_face'] = [180 - a if a <=180 else a - 180  for a in train_data
 test_data['south_face'] = [180 - a if a <=180 else a - 180 for a in test_data.Aspect]
 
 # the effect of a north facing slope is amplified by steepness of the slope
-train_data['south_x_slope'] = train_data.south_face * train_data.hypdis_hydro
-test_data['south_x_slope'] = test_data.south_face * test_data.hypdis_hydro
+train_data['south_x_slope'] = train_data.south_face * np.arctan(train_data.slopeperc_hydro*100)
+test_data['south_x_slope'] = test_data.south_face * np.arctan(test_data.slopeperc_hydro*100)
+
+
+train_data['north_x_slope'] = train_data.Aspect * np.arctan(train_data.slopeperc_hydro*100)
+test_data['north_x_slope'] = test_data.Aspect * np.arctan(test_data.slopeperc_hydro*100)
 
 
 train_data['EVDtH'] = train_data.Elevation-train_data.Vertical_Distance_To_Hydrology
@@ -232,11 +242,11 @@ covariates_train = list(train_data.columns.values)
 covariates_test = list(test_data.columns.values)
 
 cols_train=train_data.columns.tolist()
-cols_train=cols_train[:10]+cols_train[-15:]+cols_train[10:-15:]
+cols_train=cols_train[:10]+cols_train[-17:]+cols_train[10:-17:]
 train_data=train_data[cols_train]
 
 cols_test=test_data.columns.tolist()
-cols_test=cols_test[:10]+cols_test[-15:]+cols_test[10:-15:]
+cols_test=cols_test[:10]+cols_test[-17:]+cols_test[10:-17:]
 test_data=test_data[cols_test]
 
 X_train, X_test, y_train, y_test = train_test_split(train_data.ix[:,:-1].values, train_data.ix[:,-1].values.ravel(),test_size=0.10)
@@ -249,27 +259,27 @@ print X_train.shape, X_test.shape, y_train.shape, y_test.shape
 # print "Initial Train csv score: %.2f" % randf.score(X_train,y_train)
 
 
-estimator = RandomForestClassifier()
-
-params_grid={'n_estimators':[1000],
-                            'max_depth':[8,10,12,14]
-            }
-cv,best_estimator=crossvalidation(estimator, params_grid, 1)
-print "Best Estimator Parameters"
+#estimator = RandomForestClassifier()
+best_estimator=RandomForestClassifier()
+# params_grid={'n_estimators':[1000],
+#                             'max_depth':[8,10,12,14]
+#             }
+# cv,best_estimator=crossvalidation(estimator, params_grid, 1)
+# print "Best Estimator Parameters"
+# #
+# print "n_estimators: %d" %best_estimator.n_estimators
+# print "Training Score(F1): %.2f" %best_estimator.score(X_train,y_train)
 #
-print "n_estimators: %d" %best_estimator.n_estimators
-print "Training Score(F1): %.2f" %best_estimator.score(X_train,y_train)
-
-
-print getImportance(best_estimator, list(train_data.columns.values))
-
-title = "Learning Curves (Random Forests, n_estimators=%d, max_depth=%.6f)" %(best_estimator.n_estimators,  best_estimator.max_depth)
-plot_learning_curve(best_estimator, title, X_train, y_train, cv=cv, n_jobs=1)
-#plt.show()
-
-title = "Learning Curves (Random Forests, n_estimators=%d, max_depth=%.6f)" %(best_estimator.n_estimators,  best_estimator.max_depth)
-plot_learning_curve(best_estimator, title, X_train, y_train, cv=cv, n_jobs=1)
-#plt.show()
+#
+# print getImportance(best_estimator, list(train_data.columns.values))
+#
+# title = "Learning Curves (Random Forests, n_estimators=%d, max_depth=%.6f)" %(best_estimator.n_estimators,  best_estimator.max_depth)
+# plot_learning_curve(best_estimator, title, X_train, y_train, cv=cv, n_jobs=1)
+# #plt.show()
+#
+# title = "Learning Curves (Random Forests, n_estimators=%d, max_depth=%.6f)" %(best_estimator.n_estimators,  best_estimator.max_depth)
+# plot_learning_curve(best_estimator, title, X_train, y_train, cv=cv, n_jobs=1)
+# #plt.show()
 
 best_estimator.fit(X_train, y_train)
 y_pred=best_estimator.predict(X_test)
